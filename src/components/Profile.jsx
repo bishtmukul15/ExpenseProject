@@ -1,22 +1,28 @@
 import React, { useEffect, useState } from "react";
 
+// Replace with your Firebase Web API Key
+const FIREBASE_API_KEY = "AIzaSyCAUH6t36-km79JywjWzXvpPlXy-iTqbMs";
+
 const Profile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
   const [message, setMessage] = useState("");
   const [isProfileComplete, setIsProfileComplete] = useState(false);
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const token = localStorage.getItem("authToken");
 
-  // 🔹 Fetch saved user details on component mount
   useEffect(() => {
     async function fetchUserData() {
       if (!token) return;
 
       try {
+        setLoading(true);
         const res = await fetch(
-          `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=AIzaSyCAUH6t36-km79JywjWzXvpPlXy-iTqbMs`,
+          `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${FIREBASE_API_KEY}`,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -26,25 +32,27 @@ const Profile = () => {
 
         const data = await res.json();
 
-        if (!res.ok) throw new Error(data.error.message);
+        if (!res.ok)
+          throw new Error(data.error?.message || "Failed to fetch user");
 
         const user = data.users[0];
-        if (user.displayName || user.photoUrl) {
-          setFullName(user.displayName || "");
-          setPhotoUrl(user.photoUrl || "");
-          setIsProfileComplete(true);
-        } else {
-          setIsProfileComplete(false);
-        }
+        setFullName(user.displayName || "");
+        setPhotoUrl(user.photoUrl || "");
+        setIsProfileComplete(Boolean(user.displayName || user.photoUrl));
+        setEmailVerified(Boolean(user.emailVerified));
+        setEmail(user.email || "");
       } catch (error) {
         console.error("Error fetching user profile:", error.message);
+        setMessage("Error fetching profile: " + (error.message || "Unknown"));
+      } finally {
+        setLoading(false);
       }
     }
 
     fetchUserData();
   }, [token]);
 
-  // 🔹 Update profile details
+  // Update profile (displayName, photoUrl)
   async function handleUpdate() {
     if (!fullName || !photoUrl) {
       setMessage("Please fill all details!");
@@ -52,8 +60,9 @@ const Profile = () => {
     }
 
     try {
+      setLoading(true);
       const res = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:update?key=AIzaSyCAUH6t36-km79JywjWzXvpPlXy-iTqbMs`,
+        `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${FIREBASE_API_KEY}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -69,23 +78,89 @@ const Profile = () => {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error.message || "Profile update failed!");
+        throw new Error(data.error?.message || "Profile update failed!");
       }
 
       setMessage("✅ Profile Updated Successfully!");
-      console.log("Updated user details:", data);
       setIsEditing(false);
       setIsProfileComplete(true);
+
+      // If response contains refreshed tokens, you might want to store them
+      if (data.idToken) localStorage.setItem("authToken", data.idToken);
     } catch (err) {
       setMessage(err.message);
+    } finally {
+      setLoading(false);
     }
   }
 
-  // 🔹 When not editing, show appropriate screen
+  // ---- New: Send email verification using Firebase REST API ----
+  async function sendEmailVerification() {
+    if (!token) {
+      setMessage("You must be signed in to verify your email.");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage("");
+
+      const res = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${FIREBASE_API_KEY}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requestType: "VERIFY_EMAIL", idToken: token }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        // Firebase returns { error: { message: "SOME_CODE" } }
+        const code = data?.error?.message || "UNKNOWN_ERROR";
+        throw new Error(code);
+      }
+
+      // success
+      setMessage(
+        `Check your email (${email}). You might have received a verification link — click it to verify.`
+      );
+    } catch (err) {
+      // Map common Firebase error codes to friendly messages
+      const code = (err.message || "").toString();
+      console.error("sendEmailVerification error:", code);
+
+      let friendly = "Failed to send verification email.";
+
+      if (code.includes("INVALID_ID_TOKEN")) {
+        friendly = "Your session is invalid or expired. Please sign in again.";
+      } else if (code.includes("USER_NOT_FOUND")) {
+        friendly = "User not found. The account may have been deleted.";
+      } else if (code.includes("EMAIL_NOT_FOUND")) {
+        friendly = "Email not found for this account.";
+      } else if (code.includes("TOO_MANY_ATTEMPTS_TRY_LATER")) {
+        friendly = "Too many requests. Try again later.";
+      } else if (code.includes("OPERATION_NOT_ALLOWED")) {
+        friendly =
+          "Email actions are disabled for this project in Firebase console.";
+      } else if (code === "UNKNOWN_ERROR") {
+        friendly = "Unknown error from Firebase. Check API key and network.";
+      }
+
+      setMessage(friendly + (code ? ` (${code})` : ""));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // When not editing, show appropriate screen
   if (!isEditing) {
     return (
       <div style={styles.container}>
         <h2>Welcome to Expense Tracker 🎯</h2>
+
+        {loading && <p>Loading...</p>}
 
         {isProfileComplete ? (
           <>
@@ -106,10 +181,35 @@ const Profile = () => {
                   "N/A"
                 )}
               </p>
+              <p>
+                <b>Email:</b> {email || "N/A"}
+              </p>
+              <p>
+                <b>Email Verified:</b>{" "}
+                {emailVerified ? (
+                  <span style={{ color: "green" }}>Yes ✅</span>
+                ) : (
+                  <span style={{ color: "red" }}>No ❌</span>
+                )}
+              </p>
             </div>
-            <button style={styles.button} onClick={() => setIsEditing(true)}>
-              Edit Profile
-            </button>
+
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button style={styles.button} onClick={() => setIsEditing(true)}>
+                Edit Profile
+              </button>
+
+              {/* Show verify button only when email is not verified */}
+              {!emailVerified && (
+                <button
+                  style={{ ...styles.button, backgroundColor: "#28a745" }}
+                  onClick={sendEmailVerification}
+                  disabled={loading}
+                >
+                  {loading ? "Sending..." : "Verify Email ID"}
+                </button>
+              )}
+            </div>
           </>
         ) : (
           <>
@@ -125,7 +225,7 @@ const Profile = () => {
     );
   }
 
-  // 🔹 When editing, show update form
+  // When editing, show update form
   return (
     <div style={styles.container}>
       <h2>
@@ -149,8 +249,12 @@ const Profile = () => {
         />
 
         <div style={styles.buttons}>
-          <button style={styles.button} onClick={handleUpdate}>
-            Update
+          <button
+            style={styles.button}
+            onClick={handleUpdate}
+            disabled={loading}
+          >
+            {loading ? "Updating..." : "Update"}
           </button>
           <button
             style={{ ...styles.button, backgroundColor: "gray" }}
@@ -166,7 +270,6 @@ const Profile = () => {
   );
 };
 
-// 💅 Styling
 const styles = {
   container: {
     textAlign: "center",
@@ -176,7 +279,7 @@ const styles = {
   profileBox: {
     border: "1px solid #ccc",
     padding: "15px",
-    width: "300px",
+    width: "320px",
     margin: "10px auto",
     borderRadius: "10px",
     backgroundColor: "#f9f9f9",
