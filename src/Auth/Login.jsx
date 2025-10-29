@@ -1,18 +1,17 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const navigate = useNavigate(); // ✅ Step 1
 
-  // 🔹 Handle input changes
   function handleChange(e) {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   }
 
-  // 🔹 Handle login
   async function handleLogin(e) {
     e.preventDefault();
     setError("");
@@ -43,28 +42,18 @@ const Login = () => {
         throw new Error(data.error.message || "Login failed");
       }
 
-      // 🧠 Store token securely
+      // ✅ Store token
       localStorage.setItem("authToken", data.idToken);
       console.log("✅ Login successful! Token stored:", data.idToken);
 
-      // Go to Welcome Screen
-      setIsLoggedIn(true);
+      // ✅ Redirect to profile page
+      navigate("/profile");
     } catch (err) {
       setError(err.message);
       alert("Invalid credentials or user not found!");
     } finally {
       setLoading(false);
     }
-  }
-
-  // 🔹 If logged in, show welcome screen
-  if (isLoggedIn) {
-    return (
-      <div style={styles.welcome}>
-        <h2>Welcome to Expense Tracker 🎉</h2>
-        <p>You have successfully logged in!</p>
-      </div>
-    );
   }
 
   return (
@@ -123,11 +112,6 @@ const styles = {
     cursor: "pointer",
   },
   error: { color: "red", fontSize: "14px" },
-  welcome: {
-    textAlign: "center",
-    marginTop: "100px",
-    fontFamily: "Arial",
-  },
 };
 
 export default Login;
