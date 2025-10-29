@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
-
+import { useNavigate } from "react-router-dom";
 // Replace with your Firebase Web API Key
 const FIREBASE_API_KEY = "AIzaSyCAUH6t36-km79JywjWzXvpPlXy-iTqbMs";
 
 const Profile = () => {
+  const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
   const [fullName, setFullName] = useState("");
   const [photoUrl, setPhotoUrl] = useState("");
@@ -209,6 +210,14 @@ const Profile = () => {
                   {loading ? "Sending..." : "Verify Email ID"}
                 </button>
               )}
+            </div>
+            <div style={{ marginTop: "20px" }}>
+              <button
+                style={{ ...styles.button, backgroundColor: "#6f42c1" }}
+                onClick={() => navigate("/daily-expense")}
+              >
+                Go to Daily Expense Tracker
+              </button>
             </div>
           </>
         ) : (

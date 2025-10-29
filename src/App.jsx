@@ -6,6 +6,7 @@ import Login from "./Auth/Login";
 import Profile from "./components/Profile";
 import Logout from "./Auth/Logout";
 import ForgotPassword from "./Auth/ForgotPassword";
+import DailyExpense from "./components/DailyExpense";
 
 const App = () => {
   return (
@@ -20,6 +21,7 @@ const App = () => {
           <Route path="/profile" element={<Profile />} />
           <Route path="/logout" element={<Logout />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/daily-expense" element={<DailyExpense />} />
         </Routes>
       </Router>
     </div>
