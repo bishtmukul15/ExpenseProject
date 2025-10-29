@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 const FIREBASE_DB_URL =
   "https://react-http-1c2c7-default-rtdb.asia-southeast1.firebasedatabase.app/";
+
 const DailyExpense = () => {
   const [formData, setFormData] = useState({
     money: "",
@@ -11,11 +12,11 @@ const DailyExpense = () => {
   });
   const [expenses, setExpenses] = useState([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [editId, setEditId] = useState(null); // ✅ Track which expense is being edited
   const navigate = useNavigate();
-
   const token = localStorage.getItem("authToken");
 
-  // ✅ Fetch all previous expenses on page load
+  // ✅ Fetch all previous expenses
   useEffect(() => {
     if (!token) {
       navigate("/login");
@@ -31,7 +32,6 @@ const DailyExpense = () => {
         if (!res.ok) throw new Error("Failed to fetch expenses");
         const data = await res.json();
 
-        // Convert object to array (Firebase stores objects)
         const loadedExpenses = [];
         for (let key in data) {
           loadedExpenses.push({ id: key, ...data[key] });
@@ -51,38 +51,94 @@ const DailyExpense = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   }
 
-  // ✅ Handle Add Expense (POST to Firebase)
+  // ✅ Handle Add / Update Expense
   async function handleForm(e) {
     e.preventDefault();
 
-    const newExpense = {
+    const expenseData = {
       money: formData.money,
       description: formData.description,
       category: formData.category,
       date: new Date().toLocaleString(),
     };
 
+    // 🟩 If editing — do a PUT request
+    if (editId) {
+      try {
+        const res = await fetch(
+          `${FIREBASE_DB_URL}/expenses/${editId}.json?auth=${token}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(expenseData),
+          }
+        );
+
+        if (!res.ok) throw new Error("Failed to update expense");
+
+        setExpenses((prev) =>
+          prev.map((exp) =>
+            exp.id === editId ? { id: editId, ...expenseData } : exp
+          )
+        );
+
+        console.log("✅ Expense successfully updated");
+        setEditId(null);
+        setFormData({ money: "", description: "", category: "Food" });
+      } catch (err) {
+        console.error("Error updating expense:", err.message);
+      }
+      return;
+    }
+
+    // 🟦 If adding new — do a POST request
     try {
       const res = await fetch(
         `${FIREBASE_DB_URL}/expenses.json?auth=${token}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(newExpense),
+          body: JSON.stringify(expenseData),
         }
       );
 
       if (!res.ok) throw new Error("Failed to store expense");
+      const data = await res.json();
 
-      const data = await res.json(); // contains { name: "unique_id" }
-      // Add new expense to the list immediately
-      setExpenses((prev) => [...prev, { id: data.name, ...newExpense }]);
-
-      // Reset form
+      setExpenses((prev) => [...prev, { id: data.name, ...expenseData }]);
       setFormData({ money: "", description: "", category: "Food" });
     } catch (err) {
       console.error("Error adding expense:", err.message);
     }
+  }
+
+  // ✅ DELETE Expense
+  async function handleDelete(id) {
+    try {
+      const res = await fetch(
+        `${FIREBASE_DB_URL}/expenses/${id}.json?auth=${token}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      if (!res.ok) throw new Error("Failed to delete expense");
+
+      setExpenses((prev) => prev.filter((exp) => exp.id !== id));
+      console.log("✅ Expense successfully deleted");
+    } catch (err) {
+      console.error("Error deleting expense:", err.message);
+    }
+  }
+
+  // ✅ EDIT Expense
+  function handleEdit(exp) {
+    setEditId(exp.id);
+    setFormData({
+      money: exp.money,
+      description: exp.description,
+      category: exp.category,
+    });
   }
 
   if (!isLoggedIn) {
@@ -129,7 +185,7 @@ const DailyExpense = () => {
         </select>
 
         <button type="submit" style={styles.button}>
-          Add Expense
+          {editId ? "Update Expense" : "Add Expense"}
         </button>
       </form>
 
@@ -143,8 +199,23 @@ const DailyExpense = () => {
           {expenses.map((exp) => (
             <li key={exp.id} style={styles.item}>
               <strong>₹{exp.money}</strong> — {exp.description} (
-              <em>{exp.category}</em>) <br />
+              <em>{exp.category}</em>)
+              <br />
               <small style={{ color: "#666" }}>{exp.date}</small>
+              <div style={{ marginTop: "5px" }}>
+                <button
+                  onClick={() => handleDelete(exp.id)}
+                  style={{ ...styles.actionBtn, backgroundColor: "#dc3545" }}
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => handleEdit(exp)}
+                  style={{ ...styles.actionBtn, backgroundColor: "#28a745" }}
+                >
+                  Edit
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -202,6 +273,14 @@ const styles = {
   notLogged: {
     textAlign: "center",
     marginTop: "80px",
+  },
+  actionBtn: {
+    padding: "5px 10px",
+    color: "#fff",
+    border: "none",
+    borderRadius: "5px",
+    margin: "0 5px",
+    cursor: "pointer",
   },
 };
 
