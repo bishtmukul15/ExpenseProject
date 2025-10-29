@@ -81,6 +81,12 @@ const Login = () => {
 
         <button type="submit" disabled={loading} style={styles.button}>
           {loading ? "Logging in..." : "Login"}
+          <p
+            style={{ color: "blue", cursor: "pointer", marginTop: "10px" }}
+            onClick={() => navigate("/forgot-password")}
+          >
+            Forgot Password?
+          </p>
         </button>
       </form>
     </div>
