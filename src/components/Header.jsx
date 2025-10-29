@@ -10,7 +10,10 @@ const Header = () => {
       <NavLink to="/signup" style={{ marginRight: "10px" }}>
         Signup
       </NavLink>
-      <NavLink to="/login">Login</NavLink>
+      <NavLink to="/login" style={{ marginRight: "10px" }}>
+        Login
+      </NavLink>
+      <NavLink to="/logout">Logout</NavLink>
     </nav>
   );
 };
