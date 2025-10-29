@@ -1,21 +1,17 @@
 import React from "react";
+import { NavLink } from "react-router-dom";
 
-import Home from "../pages/Home";
-import Products from "../pages/Products";
-import AboutUs from "../pages/AboutUs";
 const Header = () => {
   return (
-    <div>
-      <div>
-        <Home />
-      </div>
-      <div>
-        <Products />
-      </div>
-      <div>
-        <AboutUs />
-      </div>
-    </div>
+    <nav>
+      <NavLink to="/" style={{ marginRight: "10px" }}>
+        Home
+      </NavLink>
+      <NavLink to="/signup" style={{ marginRight: "10px" }}>
+        Signup
+      </NavLink>
+      <NavLink to="/login">Login</NavLink>
+    </nav>
   );
 };
 
