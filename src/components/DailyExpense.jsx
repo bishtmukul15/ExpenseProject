@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
+const FIREBASE_DB_URL =
+  "https://react-http-1c2c7-default-rtdb.asia-southeast1.firebasedatabase.app/";
 const DailyExpense = () => {
   const [formData, setFormData] = useState({
     money: "",
@@ -11,33 +13,76 @@ const DailyExpense = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem("authToken");
-    if (token) setIsLoggedIn(true);
-    else navigate("/login");
-  }, [navigate]);
+  const token = localStorage.getItem("authToken");
 
+  // ✅ Fetch all previous expenses on page load
+  useEffect(() => {
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+    setIsLoggedIn(true);
+
+    async function fetchExpenses() {
+      try {
+        const res = await fetch(
+          `${FIREBASE_DB_URL}/expenses.json?auth=${token}`
+        );
+        if (!res.ok) throw new Error("Failed to fetch expenses");
+        const data = await res.json();
+
+        // Convert object to array (Firebase stores objects)
+        const loadedExpenses = [];
+        for (let key in data) {
+          loadedExpenses.push({ id: key, ...data[key] });
+        }
+        setExpenses(loadedExpenses);
+      } catch (err) {
+        console.error("Error fetching expenses:", err.message);
+      }
+    }
+
+    fetchExpenses();
+  }, [navigate, token]);
+
+  // ✅ Handle Input Change
   function handleChange(e) {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   }
 
-  function handleForm(e) {
+  // ✅ Handle Add Expense (POST to Firebase)
+  async function handleForm(e) {
     e.preventDefault();
 
     const newExpense = {
       money: formData.money,
       description: formData.description,
       category: formData.category,
-      id: Date.now(), // unique id for list rendering
+      date: new Date().toLocaleString(),
     };
 
-    // Add expense to the list
-    setExpenses((prev) => [...prev, newExpense]);
+    try {
+      const res = await fetch(
+        `${FIREBASE_DB_URL}/expenses.json?auth=${token}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(newExpense),
+        }
+      );
 
-    // Clear inputs
-    setFormData({ money: "", description: "", category: "Food" });
+      if (!res.ok) throw new Error("Failed to store expense");
+
+      const data = await res.json(); // contains { name: "unique_id" }
+      // Add new expense to the list immediately
+      setExpenses((prev) => [...prev, { id: data.name, ...newExpense }]);
+
+      // Reset form
+      setFormData({ money: "", description: "", category: "Food" });
+    } catch (err) {
+      console.error("Error adding expense:", err.message);
+    }
   }
 
   if (!isLoggedIn) {
@@ -51,6 +96,7 @@ const DailyExpense = () => {
   return (
     <div style={styles.container}>
       <h2>💰 Daily Expense Tracker</h2>
+
       <form onSubmit={handleForm} style={styles.form}>
         <input
           type="number"
@@ -59,6 +105,7 @@ const DailyExpense = () => {
           value={formData.money}
           onChange={handleChange}
           style={styles.input}
+          required
         />
         <input
           type="text"
@@ -67,6 +114,7 @@ const DailyExpense = () => {
           value={formData.description}
           onChange={handleChange}
           style={styles.input}
+          required
         />
         <select
           name="category"
@@ -95,7 +143,8 @@ const DailyExpense = () => {
           {expenses.map((exp) => (
             <li key={exp.id} style={styles.item}>
               <strong>₹{exp.money}</strong> — {exp.description} (
-              <em>{exp.category}</em>)
+              <em>{exp.category}</em>) <br />
+              <small style={{ color: "#666" }}>{exp.date}</small>
             </li>
           ))}
         </ul>
@@ -104,7 +153,7 @@ const DailyExpense = () => {
   );
 };
 
-// 🎨 Basic Styling
+// 🎨 Styling
 const styles = {
   container: {
     width: "400px",
