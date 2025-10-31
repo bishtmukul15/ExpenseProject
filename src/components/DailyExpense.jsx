@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useExpense } from "../Auth/context/ExpenseContext"; // ✅ import your custom context hook
-
+import { useExpense } from "../Auth/context/ExpenseContext";
+import { useTheme } from "../Auth/context/ThemeContext"; // 🌙 Added
 const FIREBASE_DB_URL =
   "https://react-http-1c2c7-default-rtdb.asia-southeast1.firebasedatabase.app/";
 
@@ -12,14 +12,15 @@ const DailyExpense = () => {
     category: "Food",
   });
 
-  const { expenses, setExpenses, addExpense, deleteExpense, isPremium } =
-    useExpense();
+  const { expenses, setExpenses, addExpense, deleteExpense } = useExpense();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [editId, setEditId] = useState(null);
+  const [isPremium, setIsPremium] = useState(false); // 🌟 Local state for premium
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme(); // 🌙 Theme hook
   const token = localStorage.getItem("authToken");
 
-  // ✅ Fetch all previous expenses
+  // ✅ Fetch Expenses
   useEffect(() => {
     if (!token) {
       navigate("/login");
@@ -39,7 +40,7 @@ const DailyExpense = () => {
         for (let key in data) {
           loadedExpenses.push({ id: key, ...data[key] });
         }
-        setExpenses(loadedExpenses); // ✅ using context method
+        setExpenses(loadedExpenses);
       } catch (err) {
         console.error("Error fetching expenses:", err.message);
       }
@@ -48,13 +49,26 @@ const DailyExpense = () => {
     fetchExpenses();
   }, [navigate, token, setExpenses]);
 
-  // ✅ Handle Input Change
+  // ✅ Calculate total
+  const totalExpense = expenses.reduce(
+    (sum, exp) => sum + Number(exp.money || 0),
+    0
+  );
+
+  // ✅ Activate Premium when >= 10,000
+  useEffect(() => {
+    if (totalExpense >= 10000) {
+      setIsPremium(true);
+    }
+  }, [totalExpense]);
+
+  // ✅ Handle Input
   function handleChange(e) {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   }
 
-  // ✅ Handle Add / Update Expense
+  // ✅ Add / Update Expense
   async function handleForm(e) {
     e.preventDefault();
 
@@ -65,8 +79,8 @@ const DailyExpense = () => {
       date: new Date().toLocaleString(),
     };
 
-    // 🟩 Update Expense
     if (editId) {
+      // 🟩 Update
       try {
         const res = await fetch(
           `${FIREBASE_DB_URL}/expenses/${editId}.json?auth=${token}`,
@@ -76,16 +90,12 @@ const DailyExpense = () => {
             body: JSON.stringify(expenseData),
           }
         );
-
         if (!res.ok) throw new Error("Failed to update expense");
-
         setExpenses((prev) =>
           prev.map((exp) =>
             exp.id === editId ? { id: editId, ...expenseData } : exp
           )
         );
-
-        console.log("✅ Expense successfully updated");
         setEditId(null);
         setFormData({ money: "", description: "", category: "Food" });
       } catch (err) {
@@ -94,7 +104,7 @@ const DailyExpense = () => {
       return;
     }
 
-    // 🟦 Add New Expense
+    // 🟦 Add
     try {
       const res = await fetch(
         `${FIREBASE_DB_URL}/expenses.json?auth=${token}`,
@@ -104,35 +114,32 @@ const DailyExpense = () => {
           body: JSON.stringify(expenseData),
         }
       );
-
       if (!res.ok) throw new Error("Failed to store expense");
       const data = await res.json();
-
-      addExpense({ id: data.name, ...expenseData }); // ✅ using context
+      addExpense({ id: data.name, ...expenseData });
       setFormData({ money: "", description: "", category: "Food" });
     } catch (err) {
       console.error("Error adding expense:", err.message);
     }
   }
 
-  // ✅ DELETE Expense
+  // ✅ Delete Expense
   async function handleDelete(id) {
     try {
       const res = await fetch(
         `${FIREBASE_DB_URL}/expenses/${id}.json?auth=${token}`,
-        { method: "DELETE" }
+        {
+          method: "DELETE",
+        }
       );
-
       if (!res.ok) throw new Error("Failed to delete expense");
-
-      deleteExpense(id); // ✅ using context
-      console.log("✅ Expense successfully deleted");
+      deleteExpense(id);
     } catch (err) {
       console.error("Error deleting expense:", err.message);
     }
   }
 
-  // ✅ EDIT Expense
+  // ✅ Edit Expense
   function handleEdit(exp) {
     setEditId(exp.id);
     setFormData({
@@ -141,6 +148,23 @@ const DailyExpense = () => {
       category: exp.category,
     });
   }
+
+  // ✅ Download CSV
+  const handleDownload = () => {
+    const csvData =
+      "Description,Amount,Category,Date\n" +
+      expenses
+        .map(
+          (exp) => `${exp.description},${exp.money},${exp.category},${exp.date}`
+        )
+        .join("\n");
+
+    const blob = new Blob([csvData], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "expenses.csv";
+    link.click();
+  };
 
   if (!isLoggedIn) {
     return (
@@ -153,6 +177,7 @@ const DailyExpense = () => {
   return (
     <div style={styles.container}>
       <h2>💰 Daily Expense Tracker</h2>
+      <h4>Total Expense: ₹{totalExpense}</h4>
 
       <form onSubmit={handleForm} style={styles.form}>
         <input
@@ -223,15 +248,29 @@ const DailyExpense = () => {
       )}
 
       {isPremium && (
-        <button style={{ background: "gold", marginTop: "15px" }}>
-          🌟 Activate Premium
-        </button>
+        <div style={{ marginTop: "15px" }}>
+          <button
+            onClick={toggleTheme}
+            style={{ ...styles.actionBtn, backgroundColor: "black" }}
+          >
+            Toggle {theme === "light" ? "Dark" : "Light"} Theme
+          </button>
+          <button
+            onClick={handleDownload}
+            style={{
+              ...styles.actionBtn,
+              backgroundColor: "gold",
+              color: "black",
+            }}
+          >
+            📥 Download CSV
+          </button>
+        </div>
       )}
     </div>
   );
 };
 
-// 🎨 Styling
 const styles = {
   container: {
     width: "400px",
@@ -240,19 +279,10 @@ const styles = {
     border: "1px solid #ccc",
     borderRadius: "10px",
     textAlign: "center",
-    backgroundColor: "#f9f9f9",
   },
   form: { display: "flex", flexDirection: "column", gap: "10px" },
-  input: {
-    padding: "10px",
-    borderRadius: "5px",
-    border: "1px solid #ccc",
-  },
-  select: {
-    padding: "10px",
-    borderRadius: "5px",
-    border: "1px solid #ccc",
-  },
+  input: { padding: "10px", borderRadius: "5px", border: "1px solid #ccc" },
+  select: { padding: "10px", borderRadius: "5px", border: "1px solid #ccc" },
   button: {
     padding: "10px",
     backgroundColor: "#007BFF",
@@ -271,12 +301,12 @@ const styles = {
   },
   notLogged: { textAlign: "center", marginTop: "80px" },
   actionBtn: {
-    padding: "5px 10px",
-    color: "#fff",
+    padding: "7px 12px",
+    borderRadius: "6px",
     border: "none",
-    borderRadius: "5px",
-    margin: "0 5px",
     cursor: "pointer",
+    margin: "5px",
+    color: "white",
   },
 };
 
