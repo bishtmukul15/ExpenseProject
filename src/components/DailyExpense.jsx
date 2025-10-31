@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useExpense } from "../Auth/context/ExpenseContext"; // ✅ import your custom context hook
 
 const FIREBASE_DB_URL =
   "https://react-http-1c2c7-default-rtdb.asia-southeast1.firebasedatabase.app/";
@@ -10,9 +11,11 @@ const DailyExpense = () => {
     description: "",
     category: "Food",
   });
-  const [expenses, setExpenses] = useState([]);
+
+  const { expenses, setExpenses, addExpense, deleteExpense, isPremium } =
+    useExpense();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [editId, setEditId] = useState(null); // ✅ Track which expense is being edited
+  const [editId, setEditId] = useState(null);
   const navigate = useNavigate();
   const token = localStorage.getItem("authToken");
 
@@ -36,14 +39,14 @@ const DailyExpense = () => {
         for (let key in data) {
           loadedExpenses.push({ id: key, ...data[key] });
         }
-        setExpenses(loadedExpenses);
+        setExpenses(loadedExpenses); // ✅ using context method
       } catch (err) {
         console.error("Error fetching expenses:", err.message);
       }
     }
 
     fetchExpenses();
-  }, [navigate, token]);
+  }, [navigate, token, setExpenses]);
 
   // ✅ Handle Input Change
   function handleChange(e) {
@@ -62,7 +65,7 @@ const DailyExpense = () => {
       date: new Date().toLocaleString(),
     };
 
-    // 🟩 If editing — do a PUT request
+    // 🟩 Update Expense
     if (editId) {
       try {
         const res = await fetch(
@@ -91,7 +94,7 @@ const DailyExpense = () => {
       return;
     }
 
-    // 🟦 If adding new — do a POST request
+    // 🟦 Add New Expense
     try {
       const res = await fetch(
         `${FIREBASE_DB_URL}/expenses.json?auth=${token}`,
@@ -105,7 +108,7 @@ const DailyExpense = () => {
       if (!res.ok) throw new Error("Failed to store expense");
       const data = await res.json();
 
-      setExpenses((prev) => [...prev, { id: data.name, ...expenseData }]);
+      addExpense({ id: data.name, ...expenseData }); // ✅ using context
       setFormData({ money: "", description: "", category: "Food" });
     } catch (err) {
       console.error("Error adding expense:", err.message);
@@ -117,14 +120,12 @@ const DailyExpense = () => {
     try {
       const res = await fetch(
         `${FIREBASE_DB_URL}/expenses/${id}.json?auth=${token}`,
-        {
-          method: "DELETE",
-        }
+        { method: "DELETE" }
       );
 
       if (!res.ok) throw new Error("Failed to delete expense");
 
-      setExpenses((prev) => prev.filter((exp) => exp.id !== id));
+      deleteExpense(id); // ✅ using context
       console.log("✅ Expense successfully deleted");
     } catch (err) {
       console.error("Error deleting expense:", err.message);
@@ -220,6 +221,12 @@ const DailyExpense = () => {
           ))}
         </ul>
       )}
+
+      {isPremium && (
+        <button style={{ background: "gold", marginTop: "15px" }}>
+          🌟 Activate Premium
+        </button>
+      )}
     </div>
   );
 };
@@ -235,11 +242,7 @@ const styles = {
     textAlign: "center",
     backgroundColor: "#f9f9f9",
   },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "10px",
-  },
+  form: { display: "flex", flexDirection: "column", gap: "10px" },
   input: {
     padding: "10px",
     borderRadius: "5px",
@@ -258,11 +261,7 @@ const styles = {
     borderRadius: "5px",
     cursor: "pointer",
   },
-  list: {
-    listStyleType: "none",
-    padding: 0,
-    textAlign: "left",
-  },
+  list: { listStyleType: "none", padding: 0, textAlign: "left" },
   item: {
     backgroundColor: "#fff",
     padding: "8px",
@@ -270,10 +269,7 @@ const styles = {
     marginTop: "5px",
     border: "1px solid #ddd",
   },
-  notLogged: {
-    textAlign: "center",
-    marginTop: "80px",
-  },
+  notLogged: { textAlign: "center", marginTop: "80px" },
   actionBtn: {
     padding: "5px 10px",
     color: "#fff",

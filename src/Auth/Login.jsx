@@ -1,11 +1,15 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../Auth/context/AuthContext";
 
 const Login = () => {
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate(); // ✅ Step 1
+  const navigate = useNavigate();
+
+  // ✅ Call hook at the top
+  const { login } = useAuth();
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -42,11 +46,10 @@ const Login = () => {
         throw new Error(data.error.message || "Login failed");
       }
 
-      // ✅ Store token
-      localStorage.setItem("authToken", data.idToken);
-      console.log("✅ Login successful! Token stored:", data.idToken);
+      // ✅ use the login function from context
+      login(data.idToken, data.localId);
 
-      // ✅ Redirect to profile page
+      console.log("✅ Login successful! Token stored:", data.idToken);
       navigate("/profile");
     } catch (err) {
       setError(err.message);
@@ -81,13 +84,14 @@ const Login = () => {
 
         <button type="submit" disabled={loading} style={styles.button}>
           {loading ? "Logging in..." : "Login"}
-          <p
-            style={{ color: "blue", cursor: "pointer", marginTop: "10px" }}
-            onClick={() => navigate("/forgot-password")}
-          >
-            Forgot Password?
-          </p>
         </button>
+
+        <p
+          style={{ color: "blue", cursor: "pointer", marginTop: "10px" }}
+          onClick={() => navigate("/forgot-password")}
+        >
+          Forgot Password?
+        </p>
       </form>
     </div>
   );

@@ -7,24 +7,26 @@ import Profile from "./components/Profile";
 import Logout from "./Auth/Logout";
 import ForgotPassword from "./Auth/ForgotPassword";
 import DailyExpense from "./components/DailyExpense";
+import { AuthProvider } from "../src/Auth/context/AuthContext";
+import { ExpenseProvider } from "../src/Auth/context/ExpenseContext";
 
 const App = () => {
   return (
-    <div>
-      <Router>
-        <Header />
-        <Routes>
-          <Route path="/signup" element={<Signup />} />
-
-          {/* Login Page */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/logout" element={<Logout />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/daily-expense" element={<DailyExpense />} />
-        </Routes>
-      </Router>
-    </div>
+    <AuthProvider>
+      <ExpenseProvider>
+        <Router>
+          <Header />
+          <Routes>
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/logout" element={<Logout />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/daily-expense" element={<DailyExpense />} />
+          </Routes>
+        </Router>
+      </ExpenseProvider>
+    </AuthProvider>
   );
 };
 
